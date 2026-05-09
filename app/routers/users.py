@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import crud, schemas, models
 from app.utils.security import decode_access_token
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+security = HTTPBearer()
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
@@ -36,4 +37,4 @@ def get_employee(employee_id: int, db: Session = Depends(get_db), current_user: 
     employee = crud.get_employee(db, employee_id)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    return employee
+    return employee 
