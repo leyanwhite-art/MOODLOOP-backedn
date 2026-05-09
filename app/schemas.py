@@ -99,7 +99,6 @@ class DepartmentResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Daily Reflection Schemas
 class ReflectionCreate(BaseModel):
     input_text: str
     department_id: int
@@ -109,11 +108,11 @@ class ReflectionResponse(BaseModel):
     employee_id: int
     department_id: int
     input_text: str
+    cleaned_text: Optional[str] = None
     wellness_tip: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True} 
 
 # Sentiment Analysis Schemas
 class SentimentResponse(BaseModel):

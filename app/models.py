@@ -65,8 +65,9 @@ class DailyReflection(Base):
     employee_id = Column(Integer, ForeignKey("employees.employee_id"), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=False)
     input_text = Column(Text, nullable=False)
+    cleaned_text = Column(Text, nullable=True)
     wellness_tip = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=datetime.now) 
 
 class SentimentAnalysis(Base):
     __tablename__ = "sentiment_analyses"
