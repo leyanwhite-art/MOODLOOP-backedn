@@ -13,4 +13,4 @@ app.include_router(users.router)
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to MoodLoop API! 🎉"}
+    return {"message": "Welcome to MoodLoop "}
