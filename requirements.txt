@@ -10,3 +10,4 @@ python-jose
 passlib
 bcryptpip 
 fastapi-mail
+apscheduler
