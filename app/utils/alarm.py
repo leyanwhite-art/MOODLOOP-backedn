@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session
 from app import models
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
 
 def calculate_department_alarm(db: Session, department_id: int):
-    # Get last 7 days window
-    window_start = datetime.now() - timedelta(days=7)
-    window_end = datetime.now()
+    # Use UTC, but strip tzinfo to match the DB columns (which don't store tz)
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    window_start = now_utc - timedelta(days=7)
+    window_end = now_utc
 
     # Get all sentiment analyses for this department in the last 7 days
     analyses = db.query(models.SentimentAnalysis).filter(
@@ -77,7 +79,7 @@ Analyses count: {total}"""
         analyses_count=total,
         window_start=window_start,
         window_end=window_end,
-        created_at=datetime.now()
+        created_at=now_utc
     )
     db.add(alarm)
     db.commit()
@@ -86,8 +88,9 @@ Analyses count: {total}"""
     print(f"✅ Alarm created for department {dept_name}: {severity_label}")
     return alarm
 
+
 def run_daily_alarm_check(db: Session):
-    print(f"🔔 Running daily alarm check at {datetime.now()}")
+    print(f"🔔 Running daily alarm check at {datetime.now(timezone.utc).isoformat()}")
     departments = db.query(models.Department).all()
     for dept in departments:
         calculate_department_alarm(db, dept.department_id)

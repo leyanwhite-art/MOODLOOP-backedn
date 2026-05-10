@@ -34,8 +34,7 @@ def get_current_hr(
     if not employee:
         raise HTTPException(status_code=401, detail="User not found")
     return employee
-    current_user: Employee = Depends(get_current_hr)
-
+  
 
 # ── 1. Stats ─────────────────────────────────────────────────
 @router.get("/stats")
@@ -56,7 +55,7 @@ def get_stats(
         "departments":   str(active_depts),
         "issuesFlagged": "0",
     }
-current_user: Employee = Depends(get_current_hr)
+
 
 # ── 2. Departments ───────────────────────────────────────────
 @router.get("/departments")
@@ -105,7 +104,7 @@ def get_departments(
         }
         for r in msg_results
     ]
-current_user: Employee = Depends(get_current_hr)
+
 
 # ── 3. Monthly trends ────────────────────────────────────────
 @router.get("/monthly-trends")
@@ -139,7 +138,7 @@ def get_monthly_trends(
         for r in results
     ]
 
-current_user: Employee = Depends(get_current_hr)
+
 # ── 4. Mood distribution ─────────────────────────────────────
 @router.get("/mood-distribution")
 def get_mood_distribution(
@@ -179,7 +178,7 @@ def get_mood_distribution(
         for r in results
         if r.emotion.value in emotion_map
     ]
-current_user: Employee = Depends(get_current_hr)
+
 
 # ── 5. Yearly trends ─────────────────────────────────────────
 @router.get("/yearly-trends")
@@ -206,7 +205,7 @@ def get_yearly_trends(
         }
         for r in results
     ]
-current_user: Employee = Depends(get_current_hr)
+
 
 # ── 6. Messages ──────────────────────────────────────────────
 @router.get("/messages")
@@ -289,7 +288,7 @@ def get_messages(
         })
 
     return messages
-    from app.schemas import HRProfileUpdate
+   
 
 # ── 7. Get HR profile ────────────────────────────────────────
 @router.get("/profile")

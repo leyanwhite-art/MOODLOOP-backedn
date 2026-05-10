@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -41,17 +41,17 @@ class SeverityEnum(str, Enum):
 class EmployeeCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=72)
     department_name: DepartmentNameEnum
 
 class HRCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=72)
 
 class HRLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=72)
 
 class EmployeeResponse(BaseModel):
     employee_id: int
@@ -112,7 +112,7 @@ class ReflectionResponse(BaseModel):
     wellness_tip: Optional[str] = None
     created_at: datetime
 
-    model_config = {"from_attributes": True} 
+    model_config = {"from_attributes": True}
 
 # Sentiment Analysis Schemas
 class SentimentResponse(BaseModel):
@@ -145,8 +145,15 @@ class AlarmResponse(BaseModel):
 # Auth Schemas
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=72)
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(max_length=72)
+    new_password: str = Field(min_length=8, max_length=72)
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr 
