@@ -1,14 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.routers import auth, users, reflections, alarms
+from app.routers import auth, users, reflections, alarms, hr
 from app.database import SessionLocal
 from app.utils.alarm import run_daily_alarm_check
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import traceback
 
-# Scheduler setup
 scheduler = BackgroundScheduler()
 
 def alarm_job():
@@ -18,7 +18,6 @@ def alarm_job():
     finally:
         db.close()
 
-# Run every day at 12:00 PM
 scheduler.add_job(
     alarm_job,
     CronTrigger(hour=12, minute=0),
@@ -28,19 +27,24 @@ scheduler.add_job(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     scheduler.start()
-    print("✅ Scheduler started - alarm check runs daily at 12:00 PM")
+    print("Scheduler started")
     yield
-    # Shutdown
     scheduler.shutdown()
-    print("Scheduler stopped")
 
 app = FastAPI(
     title="MoodLoop API",
     description="HR Mental Health Monitoring System",
     version="1.0.0",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
 )
 
 @app.middleware("http")
@@ -55,7 +59,8 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(reflections.router)
 app.include_router(alarms.router)
+app.include_router(hr.router)
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to MoodLoop API! 🎉"} 
+    return {"message": "Welcome to MoodLoop API!"}
