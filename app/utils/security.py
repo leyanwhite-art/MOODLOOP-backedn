@@ -5,14 +5,16 @@ from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Password hashing
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Truncate to 72 bytes to avoid bcrypt limitation
+    password_bytes = password.encode("utf-8")[:72]
+    return pwd_context.hash(password_bytes.decode("utf-8", errors="ignore"))
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # Truncate to 72 bytes to match hashing
+    password_bytes = plain_password.encode("utf-8")[:72]
+    return pwd_context.verify(password_bytes.decode("utf-8", errors="ignore"), hashed_password)
 
-# JWT tokens
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -25,3 +27,4 @@ def decode_access_token(token: str):
         return payload
     except JWTError:
         return None
+        
