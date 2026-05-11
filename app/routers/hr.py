@@ -34,7 +34,7 @@ def get_current_hr(
     if not employee:
         raise HTTPException(status_code=401, detail="User not found")
     return employee
-
+  
 
 # ── 1. Stats ─────────────────────────────────────────────────
 @router.get("/stats")
@@ -288,3 +288,43 @@ def get_messages(
         })
 
     return messages
+   
+
+# ── 7. Get HR profile ────────────────────────────────────────
+@router.get("/profile")
+def get_profile(
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr)
+):
+    return {
+        "employee_id": current_user.employee_id,
+        "name":        current_user.name,
+        "email":       current_user.email,
+        "role":        current_user.role.value,
+        "position":    "HR Manager",
+        "phone":       "",
+        "bio":         "",
+        "is_verified": current_user.is_verified,
+    }
+
+
+# ── 8. Update HR profile ─────────────────────────────────────
+@router.put("/profile")
+def update_profile(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr)
+):
+    if "name" in data and data["name"]:
+        current_user.name = data["name"]
+
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "employee_id": current_user.employee_id,
+        "name":        current_user.name,
+        "email":       current_user.email,
+        "message":     "Profile updated successfully"
+    }
+    
