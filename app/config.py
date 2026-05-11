@@ -10,10 +10,11 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_PORT: int
     MAIL_SERVER: str
+    FRONTEND_URL: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore"
     )
 
-settings = Settings() 
+settings = Settings()  

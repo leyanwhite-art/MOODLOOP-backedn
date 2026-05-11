@@ -1,13 +1,32 @@
-fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
-python-dotenv
-alembic
-pydantic
-pydantic-settings
-python-jose
-passlib
-bcryptpip 
-fastapi-mail
-apscheduler
+# Core web framework
+fastapi==0.136.1
+uvicorn==0.46.0
+starlette==1.0.0
+
+# Data validation & settings
+pydantic==2.13.3
+pydantic-settings==2.14.0
+email-validator==2.3.0
+
+# Database
+SQLAlchemy==2.0.49
+psycopg2-binary==2.9.12
+alembic==1.18.4
+
+# Auth & security
+python-jose==3.5.0
+passlib==1.7.4
+bcrypt==4.0.1
+
+# Email
+fastapi-mail==1.6.3
+
+# Background jobs
+APScheduler==3.11.2
+
+# Arabic text cleaning
+spacy==3.8.13
+xx_ent_wiki_sm @ https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl
+
+# Env file support
+python-dotenv==1.2.2 

@@ -89,16 +89,15 @@ class HRResponse(BaseModel):
 # Department Schemas
 class DepartmentCreate(BaseModel):
     name: str
-    manager_id: Optional[int] = None
 
 class DepartmentResponse(BaseModel):
     department_id: int
     name: str
-    manager_id: Optional[int] = None
 
     class Config:
         from_attributes = True
 
+# Reflection Schemas
 class ReflectionCreate(BaseModel):
     input_text: str
     department_id: int
@@ -156,4 +155,8 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=72)
 
 class ForgotPasswordRequest(BaseModel):
-    email: EmailStr 
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=72) 

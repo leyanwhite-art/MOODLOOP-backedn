@@ -55,14 +55,11 @@ def get_all_departments(db: Session):
     return db.query(models.Department).all()
 
 def create_department(db: Session, department: schemas.DepartmentCreate):
-    db_department = models.Department(
-        name=department.name,
-        manager_id=department.manager_id
-    )
+    db_department = models.Department(name=department.name)
     db.add(db_department)
     db.commit()
     db.refresh(db_department)
-    return db_department
+    return db_department 
 
 # Daily Reflection CRUD
 def create_reflection(db: Session, reflection: schemas.ReflectionCreate, employee_id: int):

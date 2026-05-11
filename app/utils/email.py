@@ -12,8 +12,9 @@ conf = ConnectionConfig(
     USE_CREDENTIALS=True
 )
 
+
 async def send_verification_email(email: str, token: str):
-    link = f"http://localhost:8000/auth/verify-email?token={token}"
+    link = f"{settings.FRONTEND_URL}/verify-email?token={token}"
     message = MessageSchema(
         subject="Verify your MoodLoop account",
         recipients=[email],
@@ -28,8 +29,9 @@ async def send_verification_email(email: str, token: str):
     fm = FastMail(conf)
     await fm.send_message(message)
 
+
 async def send_reset_email(email: str, token: str):
-    link = f"http://localhost:8000/auth/reset-password?token={token}"
+    link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
     message = MessageSchema(
         subject="Reset your MoodLoop password",
         recipients=[email],

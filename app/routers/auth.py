@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import crud, schemas, models
-from app.utils.security import verify_password, create_access_token, hash_password
+from app.utils.security import verify_password, create_access_token, hash_password, hash_token
 from app.routers.users import get_current_user
 from app.utils.email import send_verification_email, send_reset_email
 import secrets
@@ -19,7 +19,8 @@ async def register(employee: schemas.EmployeeCreate, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="Email already registered")
     verification_token = secrets.token_urlsafe(32)
     db_employee = crud.create_employee(db, employee)
-    db_employee.verification_token = verification_token
+    # Store only the hash; email the raw token to the user
+    db_employee.verification_token = hash_token(verification_token)
     db_employee.is_verified = False
     db.commit()
     db.refresh(db_employee)
@@ -38,7 +39,7 @@ async def hr_register(hr: schemas.HRCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     verification_token = secrets.token_urlsafe(32)
     db_hr = crud.create_hr(db, hr)
-    db_hr.verification_token = verification_token
+    db_hr.verification_token = hash_token(verification_token)
     db_hr.is_verified = False
     db.commit()
     await send_verification_email(db_hr.email, verification_token)
@@ -48,8 +49,10 @@ async def hr_register(hr: schemas.HRCreate, db: Session = Depends(get_db)):
 # Verify Email
 @router.get("/verify-email")
 def verify_email(token: str, db: Session = Depends(get_db)):
+    # Hash the incoming token to compare against the stored hash
+    hashed = hash_token(token)
     employee = db.query(models.Employee).filter(
-        models.Employee.verification_token == token
+        models.Employee.verification_token == hashed
     ).first()
     if not employee:
         raise HTTPException(status_code=400, detail="Invalid verification token")
@@ -100,9 +103,9 @@ async def forgot_password(
     if not employee:
         return generic_response
 
-    # Email exists — generate token and send the email
+    # Email exists — generate token, store its hash, email the raw value
     reset_token = secrets.token_urlsafe(32)
-    employee.reset_token = reset_token
+    employee.reset_token = hash_token(reset_token)
     employee.reset_token_expires = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
     db.commit()
 
@@ -117,8 +120,10 @@ async def forgot_password(
 # Reset Password
 @router.post("/reset-password")
 def reset_password(token: str, new_password: str, db: Session = Depends(get_db)):
+    # Hash the incoming token to compare against the stored hash
+    hashed = hash_token(token)
     employee = db.query(models.Employee).filter(
-        models.Employee.reset_token == token
+        models.Employee.reset_token == hashed
     ).first()
     if not employee:
         raise HTTPException(status_code=400, detail="Invalid reset token")
@@ -147,4 +152,4 @@ def change_password(
     current_user.password_hash = hash_password(request.new_password)
     db.commit()
 
-    return {"message": "Password changed successfully"}
+    return {"message": "Password changed successfully"} 

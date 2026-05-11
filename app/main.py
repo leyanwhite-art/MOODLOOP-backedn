@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request , HTTPException 
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -8,6 +8,7 @@ from app.utils.alarm import run_daily_alarm_check
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import traceback
+import logging
 
 scheduler = BackgroundScheduler()
 
@@ -50,13 +51,27 @@ app.add_middleware(
     allow_credentials=True,
 ) 
 
+logger = logging.getLogger("moodloop")
+
+
 @app.middleware("http")
 async def catch_exceptions(request: Request, call_next):
     try:
         return await call_next(request)
-    except Exception as e:
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+    except HTTPException:
+        # Let FastAPI handle its own intentional exceptions normally
+        raise
+    except Exception:
+        # Log full details server-side, return generic message to client
+        logger.exception(
+            "Unhandled exception on %s %s",
+            request.method,
+            request.url.path,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        ) 
 
 app.include_router(auth.router)
 app.include_router(users.router)
