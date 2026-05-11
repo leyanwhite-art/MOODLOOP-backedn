@@ -8,6 +8,7 @@ import sqlalchemy as sa
 from app.database import get_db
 from app.models import Employee, DailyReflection, SentimentAnalysis, Department, RoleEnum, CriticalKeywordAlert
 from app.utils.security import decode_access_token
+from app.utils.crypto import decrypt_text, DecryptionError
 
 router = APIRouter(prefix="/api/hr", tags=["HR"])
 security = HTTPBearer()
@@ -88,22 +89,19 @@ def get_departments(
         .all()
     )
 
-    emp_map = {r.name.value: r.employees for r in emp_results}
+    emp_map = {r.name: r.employees for r in emp_results}
 
-    display_names = {
-        "accounting":      "Accounting",
-        "maintenance":     "Maintenance",
-        "human_resources": "HR",
-        "it":              "IT",
-        "sales":           "Sales",
-        "marketing":       "Marketing",
+    # Optional abbreviations — anything not listed falls back to the raw name,
+    # which now includes admin-created departments.
+    display_overrides = {
+        "Human Resources": "HR",
     }
 
     return [
         {
-            "name":      display_names.get(r.name.value, r.name.value),
+            "name":      display_overrides.get(r.name, r.name),
             "messages":  r.messages,
-            "employees": emp_map.get(r.name.value, 0),
+            "employees": emp_map.get(r.name, 0),
         }
         for r in msg_results
     ]
@@ -212,12 +210,7 @@ def get_yearly_trends(
 
 # ── 6. Messages ──────────────────────────────────────────────
 _DEPT_DISPLAY = {
-    "accounting":      "Accounting",
-    "maintenance":     "Maintenance",
-    "human_resources": "HR",
-    "it":              "IT",
-    "sales":           "Sales",
-    "marketing":       "Marketing",
+    "Human Resources": "HR",
 }
 
 
@@ -242,6 +235,12 @@ def get_critical_alerts(
 
     out = []
     for a in alerts:
+        # Snippets are stored encrypted (Fernet). Decrypt for HR review.
+        # Legacy plaintext rows (pre-encryption migration) fall through unchanged.
+        try:
+            snippet_plain = decrypt_text(a.snippet) if a.snippet else ""
+        except DecryptionError:
+            snippet_plain = "[decryption failed]"
         out.append({
             "alert_id":        a.alert_id,
             "employee_id":     a.employee_id,
@@ -249,7 +248,7 @@ def get_critical_alerts(
             "department_id":   a.department_id,
             "department_name": _dept_display(a.department),
             "matched_keyword": a.matched_keyword,
-            "snippet":         a.snippet,
+            "snippet":         snippet_plain,
             "severity":        a.severity.value if hasattr(a.severity, "value") else a.severity,
             "is_resolved":     a.is_resolved,
             "created_at":      a.created_at.isoformat() if a.created_at else None,
@@ -313,12 +312,7 @@ def get_messages(
     )
 
     display_names = {
-        "accounting":      "Accounting Department",
-        "maintenance":     "Maintenance Department",
-        "human_resources": "HR Department",
-        "it":              "IT Department",
-        "sales":           "Sales Department",
-        "marketing":       "Marketing Department",
+        "Human Resources": "HR Department",
     }
 
     emotion_display = {
@@ -344,7 +338,9 @@ def get_messages(
     messages = []
     for i, r in enumerate(results):
         emotion_val = r.emotion.value
-        dept_display = display_names.get(r.name.value, r.name.value)
+        # Default suffix is "<Name> Department"; tiny override map handles
+        # abbreviations like "HR Department".
+        dept_display = display_names.get(r.name, f"{r.name} Department")
         emotion_label = emotion_display.get(emotion_val, emotion_val)
         themes = themes_map.get(emotion_val, [])
         count = r.employee_count

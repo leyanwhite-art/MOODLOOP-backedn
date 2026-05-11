@@ -1,6 +1,7 @@
 from app.database import SessionLocal
 from app import models
 from app.utils.security import hash_password
+from app.utils.crypto import encrypt_text
 from datetime import datetime, timedelta
 import random
 
@@ -11,7 +12,7 @@ print("🌱 Starting seed...")
 # 1. Create Departments
 departments = [
     "Accounting",
-    "Maintenance", 
+    "Maintenance",
     "Human Resources",
     "IT",
     "Sales",
@@ -42,12 +43,32 @@ if not hr:
         password_hash=hash_password("Hr@123456"),
         role=models.RoleEnum.hr,
         department_id=None,
-        is_verified=True
+        is_verified=True,
+        is_active=True,
     )
     db.add(hr)
     db.commit()
     db.refresh(hr)
 print(f"✅ HR Manager created: hr@moodloop.com / Hr@123456")
+
+# 2b. Create Admin
+admin = db.query(models.Employee).filter(
+    models.Employee.email == "admin@moodloop.com"
+).first()
+if not admin:
+    admin = models.Employee(
+        name="System Admin",
+        email="admin@moodloop.com",
+        password_hash=hash_password("Admin@123456"),
+        role=models.RoleEnum.admin,
+        department_id=None,
+        is_verified=True,
+        is_active=True,
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+print("✅ Admin created: admin@moodloop.com / Admin@123456")
 
 # 3. Create Mock Employees
 employees_data = [
@@ -95,7 +116,8 @@ for name, email, dept_name in employees_data:
             password_hash=hash_password("Employee@123"),
             role=models.RoleEnum.employee,
             department_id=dept_objects[dept_name].department_id,
-            is_verified=True
+            is_verified=True,
+            is_active=True,
         )
         db.add(emp)
         db.commit()
@@ -103,7 +125,7 @@ for name, email, dept_name in employees_data:
     employee_objects.append(emp)
     print(f"✅ Employee: {name} - {dept_name}")
 
-# 4. Create Mock Reflections
+# 4. Create Mock Reflections (encrypted at rest)
 arabic_reflections = [
     "أشعر اليوم بضغط كبير في العمل وأجد صعوبة في إتمام مهامي اليومية بسبب كثرة الاجتماعات والمواعيد النهائية المتراكمة",
     "كان يوماً جيداً بشكل عام وأشعر بالرضا عن ما أنجزته اليوم رغم بعض التحديات البسيطة التي واجهتني في العمل",
@@ -121,18 +143,19 @@ for emp in employee_objects:
         days_ago = random.randint(0, 14)
         hours_apart = i * 3
         reflection_time = datetime.now() - timedelta(days=days_ago, hours=hours_apart)
-        
+
+        plain = random.choice(arabic_reflections)
         reflection = models.DailyReflection(
             employee_id=emp.employee_id,
             department_id=emp.department_id,
-            input_text=random.choice(arabic_reflections),
-            cleaned_text=random.choice(arabic_reflections),
+            input_text=encrypt_text(plain),
+            cleaned_text=encrypt_text(plain),
             created_at=reflection_time
         )
         db.add(reflection)
 
 db.commit()
-print(f" Mock reflections created!")
+print(f" Mock reflections created (encrypted)!")
 
 # 5. Create Mock Sentiment Analyses
 sentiments = ["positive", "neutral", "negative"]
@@ -140,6 +163,12 @@ emotions = ["happiness", "stress", "anger", "motivation", "neutral", "sadness", 
 
 reflections = db.query(models.DailyReflection).all()
 for ref in reflections:
+    # Skip rows that already have sentiments (idempotent re-runs).
+    existing = db.query(models.SentimentAnalysis).filter(
+        models.SentimentAnalysis.reflection_id == ref.reflection_id
+    ).first()
+    if existing:
+        continue
     sentiment = models.SentimentAnalysis(
         reflection_id=ref.reflection_id,
         department_id=ref.department_id,
@@ -153,9 +182,28 @@ for ref in reflections:
 db.commit()
 print(" Mock sentiment analyses created!")
 
+# 6. Seed default system_settings rows if migration didn't run yet.
+_DEFAULTS = [
+    ("alarm_threshold_low", 0.30),
+    ("alarm_threshold_medium", 0.50),
+    ("alarm_threshold_high", 0.65),
+    ("alarm_threshold_critical", 0.80),
+    ("alarm_k_anonymity_floor", 5),
+    ("reflection_retention_days", 365),
+    ("max_reflections_per_day", 3),
+    ("reflection_cooldown_hours", 2),
+    ("model_hub_id", "ghaida75/arabert-emotions-7class"),
+]
+for k, v in _DEFAULTS:
+    if not db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first():
+        db.add(models.SystemSetting(key=k, value=v))
+db.commit()
+print(" System settings seeded!")
+
 print("\n Seed completed successfully!")
 print("\n Login credentials:")
+print("Admin     : admin@moodloop.com / Admin@123456")
 print("HR Manager: hr@moodloop.com / Hr@123456")
-print("Employees: [any employee email] / Employee@123")
+print("Employees : [any employee email] / Employee@123")
 
-db.close() 
+db.close()

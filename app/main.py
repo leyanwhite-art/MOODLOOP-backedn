@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Request , HTTPException 
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.routers import auth, users, reflections, alarms, hr
+from app.routers import auth, users, reflections, alarms, hr, admin
 from app.database import SessionLocal
 from app.utils.alarm import run_daily_alarm_check
+from app.routers.admin import enforce_retention
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import traceback
@@ -19,10 +20,24 @@ def alarm_job():
     finally:
         db.close()
 
+def retention_job():
+    db = SessionLocal()
+    try:
+        n = enforce_retention(db)
+        print(f"🧹 Retention job purged {n} reflections")
+    finally:
+        db.close()
+
 scheduler.add_job(
     alarm_job,
     CronTrigger(hour=12, minute=0),
     id="daily_alarm_check",
+    replace_existing=True
+)
+scheduler.add_job(
+    retention_job,
+    CronTrigger(hour=3, minute=0),
+    id="daily_retention",
     replace_existing=True
 )
 
@@ -51,35 +66,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
-) 
+)
 
 logger = logging.getLogger("moodloop")
 
 
-@app.middleware("http")
-async def catch_exceptions(request: Request, call_next):
-    try:
-        return await call_next(request)
-    except HTTPException:
-        # Let FastAPI handle its own intentional exceptions normally
-        raise
-    except Exception:
-        # Log full details server-side, return generic message to client
-        logger.exception(
-            "Unhandled exception on %s %s",
-            request.method,
-            request.url.path,
-        )
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"},
-        ) 
+# Registered as an exception handler (not HTTP middleware) so it runs *inside*
+# the CORS middleware. Returning a JSONResponse from an outer middleware skips
+# CORS's response phase and the browser then reports the 500 as a CORS failure.
+@app.exception_handler(Exception)
+async def catch_unhandled_exceptions(request: Request, exc: Exception):
+    logger.exception(
+        "Unhandled exception on %s %s",
+        request.method,
+        request.url.path,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(reflections.router)
 app.include_router(alarms.router)
 app.include_router(hr.router)
+app.include_router(admin.router)
 
 @app.get("/")
 def root():
