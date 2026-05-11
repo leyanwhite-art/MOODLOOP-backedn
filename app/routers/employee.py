@@ -7,6 +7,9 @@ from database import get_db
 from models import DailyReflection, SentimentAnalysis, Employee
 from schemas import ReflectionCreate, ReflectionResponse, EmotionHistory
 
+# [span_3](start_span)الخطوة 6: استيراد دالة التنبؤ من ملفك[span_3](end_span)
+from predict import predict_emotion 
+
 router = APIRouter(prefix="/api/employee", tags=["Employee"])
 
 
@@ -27,11 +30,19 @@ def submit_reflection(data: ReflectionCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Already submitted today")
 
-    detected_emotion = "neutral"
-    confidence       = 0.5
-    sentiment        = "neutral"
-    ai_tip           = "Take a deep breath and reflect on your day."
+    # --- الجزء الخاص بنموذج الذكاء الاصطناعي ---
+    
+    # 1. [span_4](start_span)تحليل النص باستخدام النموذج الذي قمتِ بتدريبه[span_4](end_span)
+    result = predict_emotion(data.text)
+    
+    detected_emotion = result["emotion"]      # الشعور المكتشف (مثل Stress أو Happiness)
+    confidence       = result["intensity"]    # نسبة الثقة (مثل 0.64)
+    all_scores       = result["all_scores"]   # توزيع باقي المشاعر
+    
+    # يمكنكِ لاحقاً تخصيص هذه الرسائل بناءً على نوع الشعور المكتشف
+    ai_tip = "شكراً لمشاركتنا شعورك، خذ نفساً عميقاً وفكر في إنجازاتك اليوم."
 
+    # 2. حفظ سجل التأمل
     reflection = DailyReflection(
         employee_id=data.employee_id,
         department_id=employee.department_id,
@@ -41,10 +52,11 @@ def submit_reflection(data: ReflectionCreate, db: Session = Depends(get_db)):
     db.add(reflection)
     db.flush()
 
+    # 3. [span_5](start_span)حفظ نتائج تحليل المشاعر المستخرجة من AraBERT[span_5](end_span)
     analysis = SentimentAnalysis(
         reflection_id=reflection.reflection_id,
         department_id=employee.department_id,
-        sentiment=sentiment,
+        sentiment=detected_emotion, # حفظ الشعور في خانة sentiment أو emotion حسب تصميم جدولك
         emotion=detected_emotion,
         confidence=confidence,
     )
@@ -52,11 +64,13 @@ def submit_reflection(data: ReflectionCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(reflection)
 
+    # 4. إعادة النتيجة النهائية للـ Frontend
     return {
         "reflection_id":    reflection.reflection_id,
         "detected_emotion": detected_emotion,
         "intensity":        confidence,
         "wellness_tip":     ai_tip,
+        "all_scores":       all_scores 
     }
 
 

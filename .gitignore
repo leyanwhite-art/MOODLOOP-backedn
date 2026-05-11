@@ -1,4 +1,5 @@
 .venv/
 .env
 __pycache__/
-*.pyc    
+*.pyc
+arabert_emotions_7class/    
