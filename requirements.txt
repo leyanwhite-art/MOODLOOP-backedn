@@ -28,5 +28,10 @@ APScheduler==3.11.2
 spacy==3.8.13
 xx_ent_wiki_sm @ https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl
 
+# Emotion model (AraBERT) — loaded by predict.py from ./arabert_emotions_7class
+torch==2.11.0
+transformers==5.8.0
+numpy==2.4.4
+
 # Env file support
-python-dotenv==1.2.2 
+python-dotenv==1.2.2

@@ -104,4 +104,19 @@ class DepartmentAlarm(Base):
     window_start = Column(DateTime, nullable=False)
     window_end = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utcnow_naive)
-    department = relationship("Department") 
+    department = relationship("Department")
+
+
+class CriticalKeywordAlert(Base):
+    __tablename__ = "critical_keyword_alerts"
+    alert_id = Column(Integer, primary_key=True, index=True)
+    reflection_id = Column(Integer, ForeignKey("daily_reflections.reflection_id"), nullable=False)
+    employee_id = Column(Integer, ForeignKey("employees.employee_id"), nullable=False)
+    department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=True)
+    matched_keyword = Column(String, nullable=False)
+    snippet = Column(Text, nullable=False)
+    severity = Column(Enum(SeverityEnum), nullable=False, default=SeverityEnum.critical)
+    is_resolved = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=utcnow_naive)
+    employee = relationship("Employee", foreign_keys=[employee_id])
+    department = relationship("Department", foreign_keys=[department_id])

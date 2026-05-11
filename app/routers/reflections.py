@@ -1,12 +1,25 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import crud, schemas, models
 from app.routers.users import get_current_user
 from app.utils.text_cleaner import clean_arabic_text, validate_arabic_text
+from app.utils.keyword_alarm import detect_keywords
 from datetime import datetime, timedelta, timezone
+from predict import predict_emotion
 
 router = APIRouter(prefix="/reflections", tags=["Reflections"])
+
+EMOTION_TO_SENTIMENT = {
+    "Happiness": models.SentimentEnum.positive,
+    "Motivation": models.SentimentEnum.positive,
+    "Cooperation": models.SentimentEnum.positive,
+    "Neutral": models.SentimentEnum.neutral,
+    "Stress": models.SentimentEnum.negative,
+    "Sadness": models.SentimentEnum.negative,
+    "Anger": models.SentimentEnum.negative,
+}
 
 
 @router.post("/", response_model=schemas.ReflectionResponse)
@@ -61,7 +74,8 @@ async def create_reflection(
     # Clean text with spaCy
     cleaned_text = clean_arabic_text(reflection.input_text)
 
-    # Save reflection
+    # Save reflection (flush to obtain reflection_id without committing yet,
+    # so the SentimentAnalysis insert below lives in the same transaction)
     db_reflection = models.DailyReflection(
         employee_id=current_user.employee_id,
         department_id=current_user.department_id,
@@ -70,10 +84,50 @@ async def create_reflection(
         wellness_tip=None
     )
     db.add(db_reflection)
+    db.flush()
+
+    # Run AraBERT emotion prediction off the event loop
+    prediction = await asyncio.to_thread(predict_emotion, reflection.input_text)
+    emotion_label = prediction["emotion"]
+
+    db.add(models.SentimentAnalysis(
+        reflection_id=db_reflection.reflection_id,
+        department_id=current_user.department_id,
+        sentiment=EMOTION_TO_SENTIMENT[emotion_label],
+        emotion=models.EmotionEnum(emotion_label.lower()),
+        confidence=prediction["intensity"],
+    ))
+
+    # Scan raw input for crisis keywords. Use the un-cleaned text so signals
+    # that co-occur with PII still trigger.
+    for matched_kw, snippet in detect_keywords(reflection.input_text):
+        db.add(models.CriticalKeywordAlert(
+            reflection_id=db_reflection.reflection_id,
+            employee_id=current_user.employee_id,
+            department_id=current_user.department_id,
+            matched_keyword=matched_kw,
+            snippet=snippet,
+            severity=models.SeverityEnum.critical,
+            is_resolved=False,
+        ))
+
     db.commit()
     db.refresh(db_reflection)
 
+    db_reflection.predicted_emotion = emotion_label.lower()
+    db_reflection.confidence = prediction["intensity"]
+
     return db_reflection
+
+
+@router.post("/predict-only", response_model=schemas.EmotionPredictionResponse)
+async def predict_only(
+    body: schemas.EmotionPredictionRequest,
+    current_user: models.Employee = Depends(get_current_user),
+):
+    """Run the AraBERT model without writing to the DB or applying cooldowns.
+    Dev helper for the frontend /test-model page."""
+    return await asyncio.to_thread(predict_emotion, body.input_text)
 
 
 @router.get("/my", response_model=list[schemas.ReflectionResponse])

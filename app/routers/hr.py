@@ -6,7 +6,7 @@ from datetime import date
 import sqlalchemy as sa
 
 from app.database import get_db
-from app.models import Employee, DailyReflection, SentimentAnalysis, Department, RoleEnum
+from app.models import Employee, DailyReflection, SentimentAnalysis, Department, RoleEnum, CriticalKeywordAlert
 from app.utils.security import decode_access_token
 
 router = APIRouter(prefix="/api/hr", tags=["HR"])
@@ -48,12 +48,15 @@ def get_stats(
     active_depts = db.query(
         func.count(func.distinct(DailyReflection.department_id))
     ).scalar() or 0
+    open_alerts = db.query(CriticalKeywordAlert).filter(
+        CriticalKeywordAlert.is_resolved == False  # noqa: E712
+    ).count()
 
     return {
         "totalMessages": total_messages,
         "avgMoodScore":  f"{avg_mood}/5.0",
         "departments":   str(active_depts),
-        "issuesFlagged": "0",
+        "issuesFlagged": str(open_alerts),
     }
 
 
@@ -208,6 +211,82 @@ def get_yearly_trends(
 
 
 # ── 6. Messages ──────────────────────────────────────────────
+_DEPT_DISPLAY = {
+    "accounting":      "Accounting",
+    "maintenance":     "Maintenance",
+    "human_resources": "HR",
+    "it":              "IT",
+    "sales":           "Sales",
+    "marketing":       "Marketing",
+}
+
+
+def _dept_display(dept: Department | None) -> str | None:
+    if dept is None:
+        return None
+    raw = dept.name.value if hasattr(dept.name, "value") else dept.name
+    return _DEPT_DISPLAY.get(raw, raw)
+
+
+@router.get("/critical-alerts")
+def get_critical_alerts(
+    include_resolved: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr),
+):
+    q = db.query(CriticalKeywordAlert)
+    if not include_resolved:
+        q = q.filter(CriticalKeywordAlert.is_resolved == False)  # noqa: E712
+    q = q.order_by(CriticalKeywordAlert.created_at.desc())
+    alerts = q.all()
+
+    out = []
+    for a in alerts:
+        out.append({
+            "alert_id":        a.alert_id,
+            "employee_id":     a.employee_id,
+            "employee_name":   a.employee.name if a.employee else "Unknown",
+            "department_id":   a.department_id,
+            "department_name": _dept_display(a.department),
+            "matched_keyword": a.matched_keyword,
+            "snippet":         a.snippet,
+            "severity":        a.severity.value if hasattr(a.severity, "value") else a.severity,
+            "is_resolved":     a.is_resolved,
+            "created_at":      a.created_at.isoformat() if a.created_at else None,
+        })
+    return out
+
+
+@router.post("/critical-alerts/{alert_id}/resolve")
+def resolve_critical_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr),
+):
+    alert = db.query(CriticalKeywordAlert).filter(
+        CriticalKeywordAlert.alert_id == alert_id
+    ).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    alert.is_resolved = True
+    db.commit()
+    return {"alert_id": alert_id, "is_resolved": True}
+
+
+@router.get("/total-employees")
+def get_total_employees(
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr)
+):
+    total = (
+        db.query(func.count(Employee.employee_id))
+        .filter(Employee.role != RoleEnum.hr)
+        .scalar()
+        or 0
+    )
+    return {"totalEmployees": total}
+
+
 @router.get("/messages")
 def get_messages(
     db: Session = Depends(get_db),

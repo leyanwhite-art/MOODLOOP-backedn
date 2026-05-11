@@ -5,7 +5,9 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # 1. إعداد المسارات
-MODEL_PATH = "./arabert_emotions_7class"
+# Model is pulled from Hugging Face Hub on first run and cached under
+# ~/.cache/huggingface; no local copy required.
+MODEL_PATH = "ghaida75/arabert-emotions-7class"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 2. تحميل ملف الترقيم

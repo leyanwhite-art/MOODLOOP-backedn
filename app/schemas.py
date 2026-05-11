@@ -110,8 +110,18 @@ class ReflectionResponse(BaseModel):
     cleaned_text: Optional[str] = None
     wellness_tip: Optional[str] = None
     created_at: datetime
+    predicted_emotion: Optional[str] = None
+    confidence: Optional[float] = None
 
     model_config = {"from_attributes": True}
+
+class EmotionPredictionRequest(BaseModel):
+    input_text: str
+
+class EmotionPredictionResponse(BaseModel):
+    emotion: str
+    intensity: float
+    all_scores: dict[str, float]
 
 # Sentiment Analysis Schemas
 class SentimentResponse(BaseModel):
@@ -140,6 +150,19 @@ class AlarmResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CriticalAlertResponse(BaseModel):
+    alert_id: int
+    employee_id: int
+    employee_name: str
+    department_id: int | None
+    department_name: str | None
+    matched_keyword: str
+    snippet: str
+    severity: SeverityEnum
+    is_resolved: bool
+    created_at: datetime
 
 # Auth Schemas
 class LoginRequest(BaseModel):
