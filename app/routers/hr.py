@@ -331,7 +331,7 @@ def get_messages(
         emotion_val = r.emotion.value
         # Default suffix is "<Name> Department"; tiny override map handles
         # abbreviations like "HR Department".
-        dept_display = display_names.get(r.name, f"{r.name} Department")
+        dept_label = display_names.get(r.name, f"{r.name} Department")
         emotion_label = emotion_display.get(emotion_val, emotion_val)
         themes = themes_map.get(emotion_val, [])
         count = r.employee_count
@@ -343,7 +343,7 @@ def get_messages(
 
         messages.append({
             "id":            str(i + 1),
-            "department":    dept_display,
+            "department":    dept_label,
             "emotion":       emotion_label,
             "employeeCount": count,
             "date":          r.date.strftime("%m/%d/%Y"),
