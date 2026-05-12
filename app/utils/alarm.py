@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app import models
+from app.utils.settings_store import get_setting
 from datetime import datetime, timedelta, timezone
 
 
@@ -17,7 +18,10 @@ def calculate_department_alarm(db: Session, department_id: int):
 
     total = len(analyses)
 
-    # K-anonymity check — need at least 5 employees
+    # K-anonymity check — floor comes from system_settings; hard min of 5 is
+    # enforced when the setting is written, so a misconfiguration can never
+    # lower it below the privacy contract.
+    k_anon_floor = int(get_setting(db, "alarm_k_anonymity_floor"))
     employee_ids = set(
         db.query(models.DailyReflection.employee_id).filter(
             models.DailyReflection.department_id == department_id,
@@ -25,8 +29,8 @@ def calculate_department_alarm(db: Session, department_id: int):
         ).distinct().all()
     )
 
-    if len(employee_ids) < 5:
-        print(f"Department {department_id}: Not enough employees for K-anonymity ({len(employee_ids)}/5)")
+    if len(employee_ids) < k_anon_floor:
+        print(f"Department {department_id}: Not enough employees for K-anonymity ({len(employee_ids)}/{k_anon_floor})")
         return None
 
     if total == 0:
@@ -36,17 +40,22 @@ def calculate_department_alarm(db: Session, department_id: int):
     negative_count = sum(1 for a in analyses if a.sentiment == models.SentimentEnum.negative)
     negative_ratio = negative_count / total
 
-    # Determine severity
-    if negative_ratio >= 0.80:
+    # Thresholds are admin-tunable via system_settings.
+    t_critical = float(get_setting(db, "alarm_threshold_critical"))
+    t_high = float(get_setting(db, "alarm_threshold_high"))
+    t_medium = float(get_setting(db, "alarm_threshold_medium"))
+    t_low = float(get_setting(db, "alarm_threshold_low"))
+
+    if negative_ratio >= t_critical:
         severity = models.SeverityEnum.critical
         severity_label = "Critical"
-    elif negative_ratio >= 0.65:
+    elif negative_ratio >= t_high:
         severity = models.SeverityEnum.high
         severity_label = "High"
-    elif negative_ratio >= 0.50:
+    elif negative_ratio >= t_medium:
         severity = models.SeverityEnum.medium
         severity_label = "Medium"
-    elif negative_ratio >= 0.30:
+    elif negative_ratio >= t_low:
         severity = models.SeverityEnum.low
         severity_label = "Low"
     else:

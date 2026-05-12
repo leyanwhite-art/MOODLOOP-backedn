@@ -17,14 +17,16 @@ services:
     build: .
     container_name: moodloop_api
     ports:
-      - "8080:8080"
+      - "8000:8000"
     depends_on:
       - db
     env_file:
       - .env
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
+      - hf_cache:/root/.cache/huggingface
 
 volumes:
   postgres_data:
+  hf_cache:

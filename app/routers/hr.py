@@ -6,8 +6,9 @@ from datetime import date
 import sqlalchemy as sa
 
 from app.database import get_db
-from app.models import Employee, DailyReflection, SentimentAnalysis, Department, RoleEnum
+from app.models import Employee, DailyReflection, SentimentAnalysis, Department, RoleEnum, CriticalKeywordAlert
 from app.utils.security import decode_access_token
+from app.utils.crypto import decrypt_text, DecryptionError
 
 router = APIRouter(prefix="/api/hr", tags=["HR"])
 security = HTTPBearer()
@@ -48,12 +49,15 @@ def get_stats(
     active_depts = db.query(
         func.count(func.distinct(DailyReflection.department_id))
     ).scalar() or 0
+    open_alerts = db.query(CriticalKeywordAlert).filter(
+        CriticalKeywordAlert.is_resolved == False  # noqa: E712
+    ).count()
 
     return {
         "totalMessages": total_messages,
         "avgMoodScore":  f"{avg_mood}/5.0",
         "departments":   str(active_depts),
-        "issuesFlagged": "0",
+        "issuesFlagged": str(open_alerts),
     }
 
 
@@ -85,22 +89,19 @@ def get_departments(
         .all()
     )
 
-    emp_map = {r.name.value: r.employees for r in emp_results}
+    emp_map = {r.name: r.employees for r in emp_results}
 
-    display_names = {
-        "accounting":      "Accounting",
-        "maintenance":     "Maintenance",
-        "human_resources": "HR",
-        "it":              "IT",
-        "sales":           "Sales",
-        "marketing":       "Marketing",
+    # Optional abbreviations — anything not listed falls back to the raw name,
+    # which now includes admin-created departments.
+    display_overrides = {
+        "Human Resources": "HR",
     }
 
     return [
         {
-            "name":      display_names.get(r.name.value, r.name.value),
+            "name":      display_overrides.get(r.name, r.name),
             "messages":  r.messages,
-            "employees": emp_map.get(r.name.value, 0),
+            "employees": emp_map.get(r.name, 0),
         }
         for r in msg_results
     ]
@@ -208,6 +209,83 @@ def get_yearly_trends(
 
 
 # ── 6. Messages ──────────────────────────────────────────────
+_DEPT_DISPLAY = {
+    "Human Resources": "HR",
+}
+
+
+def _dept_display(dept: Department | None) -> str | None:
+    if dept is None:
+        return None
+    raw = dept.name.value if hasattr(dept.name, "value") else dept.name
+    return _DEPT_DISPLAY.get(raw, raw)
+
+
+@router.get("/critical-alerts")
+def get_critical_alerts(
+    include_resolved: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr),
+):
+    q = db.query(CriticalKeywordAlert)
+    if not include_resolved:
+        q = q.filter(CriticalKeywordAlert.is_resolved == False)  # noqa: E712
+    q = q.order_by(CriticalKeywordAlert.created_at.desc())
+    alerts = q.all()
+
+    out = []
+    for a in alerts:
+        # Snippets are stored encrypted (Fernet). Decrypt for HR review.
+        # Legacy plaintext rows (pre-encryption migration) fall through unchanged.
+        try:
+            snippet_plain = decrypt_text(a.snippet) if a.snippet else ""
+        except DecryptionError:
+            snippet_plain = "[decryption failed]"
+        out.append({
+            "alert_id":        a.alert_id,
+            "employee_id":     a.employee_id,
+            "employee_name":   a.employee.name if a.employee else "Unknown",
+            "department_id":   a.department_id,
+            "department_name": _dept_display(a.department),
+            "matched_keyword": a.matched_keyword,
+            "snippet":         snippet_plain,
+            "severity":        a.severity.value if hasattr(a.severity, "value") else a.severity,
+            "is_resolved":     a.is_resolved,
+            "created_at":      a.created_at.isoformat() if a.created_at else None,
+        })
+    return out
+
+
+@router.post("/critical-alerts/{alert_id}/resolve")
+def resolve_critical_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr),
+):
+    alert = db.query(CriticalKeywordAlert).filter(
+        CriticalKeywordAlert.alert_id == alert_id
+    ).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    alert.is_resolved = True
+    db.commit()
+    return {"alert_id": alert_id, "is_resolved": True}
+
+
+@router.get("/total-employees")
+def get_total_employees(
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_hr)
+):
+    total = (
+        db.query(func.count(Employee.employee_id))
+        .filter(Employee.role != RoleEnum.hr)
+        .scalar()
+        or 0
+    )
+    return {"totalEmployees": total}
+
+
 @router.get("/messages")
 def get_messages(
     db: Session = Depends(get_db),
@@ -234,12 +312,7 @@ def get_messages(
     )
 
     display_names = {
-        "accounting":      "Accounting Department",
-        "maintenance":     "Maintenance Department",
-        "human_resources": "HR Department",
-        "it":              "IT Department",
-        "sales":           "Sales Department",
-        "marketing":       "Marketing Department",
+        "Human Resources": "HR Department",
     }
 
     emotion_display = {
@@ -265,7 +338,9 @@ def get_messages(
     messages = []
     for i, r in enumerate(results):
         emotion_val = r.emotion.value
-        dept_display = display_names.get(r.name.value, r.name.value)
+        # Default suffix is "<Name> Department"; tiny override map handles
+        # abbreviations like "HR Department".
+        dept_display = display_names.get(r.name, f"{r.name} Department")
         emotion_label = emotion_display.get(emotion_val, emotion_val)
         themes = themes_map.get(emotion_val, [])
         count = r.employee_count

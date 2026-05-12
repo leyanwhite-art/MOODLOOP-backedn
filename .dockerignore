@@ -1,0 +1,27 @@
+# Local virtualenv — never copy into the image
+.venv/
+
+# Raw model archive (1.4 GB) — model is pulled from Hugging Face Hub at runtime
+ai models/
+
+# Extracted model dir — no longer used (predict.py now loads from HF Hub).
+# Kept locally only as a fallback; never bake it into the image.
+arabert_emotions_7class/
+
+# Git metadata & local-only files
+.git/
+.gitignore
+.env
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

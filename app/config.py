@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     MAIL_PORT: int
     MAIL_SERVER: str
     FRONTEND_URL: str
+    # Fernet key for at-rest encryption of reflection text. Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    REFLECTION_ENC_KEY: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

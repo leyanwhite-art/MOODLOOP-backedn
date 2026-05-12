@@ -1,11 +1,17 @@
 import json
+import os
 import re
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # 1. إعداد المسارات
-MODEL_PATH = "./arabert_emotions_7class"
+# Model is pulled from Hugging Face Hub on first run and cached under
+# ~/.cache/huggingface; no local copy required.
+# Admin can override via MODEL_HUB_ID env var (set by /api/admin/model). The
+# admin endpoint also calls importlib.reload(predict) so this module re-imports
+# with the new id and reloads the tokenizer/model.
+MODEL_PATH = os.environ.get("MODEL_HUB_ID", "ghaida75/arabert-emotions-7class")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 2. تحميل ملف الترقيم

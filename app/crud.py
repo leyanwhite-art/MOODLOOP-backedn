@@ -14,9 +14,10 @@ def get_all_employees(db: Session):
     return db.query(models.Employee).all()
 
 def create_employee(db: Session, employee: schemas.EmployeeCreate):
-    # Find department by name
+    # Find department by name (case-insensitive — frontend sometimes sends
+    # variants like "accounting" / "Accounting").
     department = db.query(models.Department).filter(
-        models.Department.name == employee.department_name
+        models.Department.name.ilike(employee.department_name)
     ).first()
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
