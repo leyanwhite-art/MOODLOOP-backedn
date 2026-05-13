@@ -103,7 +103,7 @@ class DepartmentResponse(BaseModel):
 # Reflection Schemas
 class ReflectionCreate(BaseModel):
     input_text: str
-    department_id: int
+    # department_id: int, not needed because reflections uses current_user.department_id
     selected_emotion: Optional[str] = None
 
 class ReflectionResponse(BaseModel):

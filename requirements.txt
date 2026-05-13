@@ -37,3 +37,6 @@ numpy==2.4.4
 
 # Env file support
 python-dotenv==1.2.2
+
+# Google GenAI
+google-genai==1.51.0

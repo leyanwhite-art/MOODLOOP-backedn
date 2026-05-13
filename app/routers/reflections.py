@@ -10,6 +10,7 @@ from app.utils.crypto import encrypt_text, decrypt_text, DecryptionError
 from app.utils.settings_store import get_setting
 from datetime import datetime, timedelta, timezone
 from predict import predict_emotion
+from app.services.gemini import generate_wellness_tip
 
 router = APIRouter(prefix="/reflections", tags=["Reflections"])
 
@@ -122,6 +123,15 @@ async def create_reflection(
         emotion=models.EmotionEnum(emotion_label.lower()),
         confidence=prediction["intensity"],
     ))
+
+    # Generate the MoodLoop wellness tip via Gemini (off the event loop —
+    # the SDK call is sync/blocking under the hood).
+    wellness_tip = await asyncio.to_thread(
+        generate_wellness_tip,
+        plaintext_raw,
+        emotion_label.lower(),
+    )
+    db_reflection.wellness_tip = wellness_tip
 
     # Scan raw plaintext input for crisis keywords. The snippet IS the raw text,
     # so encrypt it too — HR/admin should never see the original phrasing, only
