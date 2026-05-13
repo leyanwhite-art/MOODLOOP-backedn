@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import Employee, DailyReflection, SentimentAnalysis, Department, RoleEnum, CriticalKeywordAlert
 from app.utils.security import decode_access_token
 from app.utils.crypto import decrypt_text, DecryptionError
+from app.utils.dept_display import dept_display
 
 router = APIRouter(prefix="/api/hr", tags=["HR"])
 security = HTTPBearer()
@@ -209,16 +210,6 @@ def get_yearly_trends(
 
 
 # ── 6. Messages ──────────────────────────────────────────────
-_DEPT_DISPLAY = {
-    "Human Resources": "HR",
-}
-
-
-def _dept_display(dept: Department | None) -> str | None:
-    if dept is None:
-        return None
-    raw = dept.name.value if hasattr(dept.name, "value") else dept.name
-    return _DEPT_DISPLAY.get(raw, raw)
 
 
 @router.get("/critical-alerts")
@@ -246,7 +237,7 @@ def get_critical_alerts(
             "employee_id":     a.employee_id,
             "employee_name":   a.employee.name if a.employee else "Unknown",
             "department_id":   a.department_id,
-            "department_name": _dept_display(a.department),
+            "department_name": dept_display(a.department),
             "matched_keyword": a.matched_keyword,
             "snippet":         snippet_plain,
             "severity":        a.severity.value if hasattr(a.severity, "value") else a.severity,
@@ -340,7 +331,7 @@ def get_messages(
         emotion_val = r.emotion.value
         # Default suffix is "<Name> Department"; tiny override map handles
         # abbreviations like "HR Department".
-        dept_display = display_names.get(r.name, f"{r.name} Department")
+        dept_label = display_names.get(r.name, f"{r.name} Department")
         emotion_label = emotion_display.get(emotion_val, emotion_val)
         themes = themes_map.get(emotion_val, [])
         count = r.employee_count
@@ -352,7 +343,7 @@ def get_messages(
 
         messages.append({
             "id":            str(i + 1),
-            "department":    dept_display,
+            "department":    dept_label,
             "emotion":       emotion_label,
             "employeeCount": count,
             "date":          r.date.strftime("%m/%d/%Y"),
