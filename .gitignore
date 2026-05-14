@@ -3,3 +3,6 @@
 __pycache__/
 *.pyc
 arabert_emotions_7class/    
+.env.local
+venv/
+.venv/

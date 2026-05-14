@@ -1,17 +1,18 @@
-import json
 import os
 import re
+import json
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from dotenv import load_dotenv
+
+# Load .env file (for local dev; on VPS env vars come from systemd/docker)
+load_dotenv()
 
 # 1. إعداد المسارات
-# Model is pulled from Hugging Face Hub on first run and cached under
-# ~/.cache/huggingface; no local copy required.
-# Admin can override via MODEL_HUB_ID env var (set by /api/admin/model). The
-# admin endpoint also calls importlib.reload(predict) so this module re-imports
-# with the new id and reloads the tokenizer/model.
 MODEL_PATH = os.environ.get("MODEL_HUB_ID", "ghaida75/arabert-emotions-7class")
+HF_TOKEN = os.environ.get("HF_TOKEN")  # ← NEW: read token from env
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 2. تحميل ملف الترقيم
@@ -19,11 +20,12 @@ with open("label_mapping.json", "r", encoding="utf-8") as f:
     mappings = json.load(f)
     id2label = {int(k): v for k, v in mappings["id2label"].items()}
 
-# 3. تحميل المودل والـ Tokenizer
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+# 3. تحميل المودل والـ Tokenizer (مع التوكن)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, token=HF_TOKEN)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH, token=HF_TOKEN)
 model.to(device)
 model.eval()
+
 
 def clean_arabic_text(text):
     """دالة التنظيف الشاملة المطابقة لكود Colab الخاص بكِ"""
