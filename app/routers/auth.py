@@ -144,23 +144,23 @@ async def forgot_password(
 
 
 # Reset Password
+# Reset Password
 @router.post("/reset-password")
-def reset_password(token: str, new_password: str, request: Request, db: Session = Depends(get_db)):
+def reset_password(
+    payload: schemas.ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     # Hash the incoming token to compare against the stored hash
-    hashed = hash_token(token)
+    hashed = hash_token(payload.token)
     employee = db.query(models.Employee).filter(
         models.Employee.reset_token == hashed
     ).first()
     if not employee:
         raise HTTPException(status_code=400, detail="Invalid reset token")
-    if employee.reset_token_expires < datetime.now(timezone.utc).replace(tzinfo=None):
+    if not employee.reset_token_expires or employee.reset_token_expires < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Reset token has expired")
-    employee.password_hash = hash_password(new_password)
-    employee.reset_token = None
-    employee.reset_token_expires = None
-    db.commit()
-    log_action(db, request, employee, "password.reset", target_type="employee", target_id=employee.employee_id)
-    return {"message": "Password reset successfully! You can now login."}
+    employee.password_hash = hash_password(payload.new_password)
 
 
 # Change Password
