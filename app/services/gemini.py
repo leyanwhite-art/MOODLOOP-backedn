@@ -160,7 +160,7 @@ def generate_wellness_tip(reflection_text: str, detected_emotion: str) -> str | 
             config=types.GenerateContentConfig(
                 system_instruction=MOODLOOP_SYSTEM_PROMPT,
                 temperature=0.7,
-                max_output_tokens=300,
+                max_output_tokens=800,
             ),
         )
         tip = (response.text or "").strip()
