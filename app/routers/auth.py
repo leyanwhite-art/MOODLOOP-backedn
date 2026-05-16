@@ -145,9 +145,13 @@ async def forgot_password(
 
 # Reset Password
 @router.post("/reset-password")
-def reset_password(token: str, new_password: str, request: Request, db: Session = Depends(get_db)):
+def reset_password(
+    request_payload: schemas.ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     # Hash the incoming token to compare against the stored hash
-    hashed = hash_token(token)
+    hashed = hash_token(request_payload.token)
     employee = db.query(models.Employee).filter(
         models.Employee.reset_token == hashed
     ).first()
@@ -155,7 +159,7 @@ def reset_password(token: str, new_password: str, request: Request, db: Session 
         raise HTTPException(status_code=400, detail="Invalid reset token")
     if employee.reset_token_expires < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Reset token has expired")
-    employee.password_hash = hash_password(new_password)
+    employee.password_hash = hash_password(request_payload.new_password)
     employee.reset_token = None
     employee.reset_token_expires = None
     db.commit()
