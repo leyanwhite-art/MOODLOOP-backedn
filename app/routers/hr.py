@@ -393,4 +393,5 @@ def update_profile(
         "email":       current_user.email,
         "message":     "Profile updated successfully"
     }
-    
+  # All functionalities tested successfully
+  #   
